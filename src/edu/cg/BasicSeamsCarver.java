@@ -82,14 +82,16 @@ public class BasicSeamsCarver extends ImageProcessor {
 		// were chosen in the Seam Carving process.
 
 		BufferedImage image = duplicateWorkingImage();
-		List<Coordinate> path = getVerticalSeam();
-		image = costTableToImage();
-//		drawVerticalSeam(image, path);
 
+		List<Coordinate> path = getVerticalSeam(image);
+		drawVerticalSeam(image, path);
+
+//		return costTableToImage();
 		return image;
 	}
 
 	private void drawVerticalSeam(BufferedImage image, List<Coordinate> path){
+		logger.log(path.size()+ " " + image.getHeight());
 		for(Coordinate c : path){
 			image.setRGB(c.X,c.Y, Color.RED.getRGB());
 		}
@@ -100,7 +102,7 @@ public class BasicSeamsCarver extends ImageProcessor {
 		BufferedImage image = newEmptyInputSizedImage();
 		int maxValue = 0;
 		for(int row = 0; row < costsTable.length; row++){
-			for(int col = 0; col < costsTable[row].length; col++){
+			for(int col = 1; col < costsTable[row].length - 2; col++){
 				if(costsTable[row][col] >= maxValue){
 					maxValue = costsTable[row][col];
 				}
@@ -110,30 +112,51 @@ public class BasicSeamsCarver extends ImageProcessor {
 		int x = maxValue / 255;
 
 		for(int row = 0; row < costsTable.length; row++){
-			for(int col = 0; col < costsTable[row].length; col++){
-				Color c = new Color(costsTable[row][col] / x);
-				image.setRGB(col, row, c.getRGB());
+			for(int col = 1; col < costsTable[row].length - 2; col++){
+//				Color c = new Color(costsTable[row][col] / x, costsTable[row][col] / x, costsTable[row][col] / x);
+				image.setRGB(col, row, costsTable[row][col] / x);
 			}
 		}
-
 		return image;
 	}
 
-	private List<Coordinate> getVerticalSeam(){
+	private List<Coordinate> getVerticalSeam(BufferedImage image){
 		List<Coordinate> seamPath = new ArrayList<Coordinate>();
-		int maxIndex = getMaxAvailableIndex();
-		seamPath.add(new Coordinate(maxIndex, gradientImage.getHeight() - 1));
+		int col = getMinAvailableIndex();
+		seamPath.add(new Coordinate(col, gradientImage.getHeight() - 1));
 
 		for(int row = gradientImage.getHeight() - 1; row > 0 ; row--){
-			if(costsTable[row - 1][maxIndex - 1] >= costsTable[row - 1][maxIndex] && costsTable[row - 1][maxIndex - 1] >= costsTable[row - 1][maxIndex + 1]){
-				seamPath.add(new Coordinate(maxIndex - 1, row - 1));
+			int top = new Color(grayScaledImage.getRGB(col, row - 1)).getRed();
+			int left = new Color(grayScaledImage.getRGB(col - 1, row)).getRed();
+			int right = new Color(grayScaledImage.getRGB(col + 1, row)).getRed();
+			int costL = Math.abs( top - left ) + Math.abs( right - left );
+			int costR = Math.abs(top - right) + Math.abs(left - right) ;
+			int costV = Math.abs(top - right );
+			int gradient = new Color(gradientImage.getRGB(col, row)).getRed();
+
+			if(costsTable[row][col] == gradient + costsTable[row - 1][col - 1] + costL){
+				seamPath.add(new Coordinate(col - 1, row - 1));
+				col--;
+			} else if (costsTable[row][col] == gradient + costsTable[row - 1][col + 1] + costR){
+				seamPath.add(new Coordinate(col + 1 , row - 1));
+				col++;
+			}else if (costsTable[row][col] == gradient + costsTable[row - 1][col] + costV){
+				seamPath.add(new Coordinate(col, row - 1));
+
 			}
-			else if(costsTable[row - 1][maxIndex] >= costsTable[row - 1][maxIndex - 1] && costsTable[row - 1][maxIndex] >= costsTable[row - 1][maxIndex + 1]){
-				seamPath.add(new Coordinate(maxIndex, row - 1));
-			}
-			else if(costsTable[row - 1][maxIndex + 1] >= costsTable[row - 1][maxIndex - 1] && costsTable[row - 1][maxIndex + 1] >= costsTable[row - 1][maxIndex ]){
-				seamPath.add(new Coordinate(maxIndex - 1, row + 1));
-			}
+
+//			if(costsTable[row - 1][col - 1] <= costsTable[row - 1][col] && costsTable[row - 1][col - 1] <= costsTable[row - 1][col + 1]){
+//				seamPath.add(new Coordinate(col - 1, row - 1));
+//				col--;
+//			}
+//			else if(costsTable[row - 1][col] <= costsTable[row - 1][col - 1] && costsTable[row - 1][col] <= costsTable[row - 1][col + 1]){
+//				seamPath.add(new Coordinate(col, row - 1));
+//			}
+//			else if(costsTable[row - 1][col + 1] <= costsTable[row - 1][col - 1] && costsTable[row - 1][col + 1] <= costsTable[row - 1][col ]){
+//				seamPath.add(new Coordinate(col - 1, row - 1));
+//				col++;
+//			}
+
 		}
 
 		return seamPath;
@@ -141,17 +164,17 @@ public class BasicSeamsCarver extends ImageProcessor {
 
 	}
 
-	private int getMaxAvailableIndex(){
-		int maxIndex = 0;
+	private int getMinAvailableIndex(){
+		int minIndex = 0;
 		int lastRow = gradientImage.getHeight() - 1;
 		for(int i = 0; i < gradientImage.getWidth(); i++){
-			if(costsTable[lastRow][i] > costsTable[lastRow][maxIndex] && availableVerticalSeams[i]){
-				maxIndex = i;
+			if(costsTable[lastRow][i] <= costsTable[lastRow][minIndex] && availableVerticalSeams[i]){
+				minIndex = i;
 			}
 		}
 
-		availableVerticalSeams[maxIndex] = false;
-		return maxIndex;
+		availableVerticalSeams[minIndex] = false;
+		return minIndex;
 	}
 
 	private Boolean[]  initializeBooleanArray(int arrayLength){
@@ -167,23 +190,38 @@ public class BasicSeamsCarver extends ImageProcessor {
 	private void generateCostsTable(int[][] costsTable) {
 		// initializing first row
 		Color c;
+		int costL;
+		int costR;
+		int costV;
 		for (int i = 0; i < costsTable[0].length; i++) {
 			c = new Color(gradientImage.getRGB(i, 0));
 			costsTable[0][i] = c.getRed();
 		}
+
 		for (int row = 1; row < costsTable.length; row++) {
 			for (int col = 0; col < costsTable[row].length; col++) {
+				int top = new Color(grayScaledImage.getRGB(col, row - 1)).getRed();
+				int gradient = new Color(gradientImage.getRGB(col,row)).getRed();
+
 				if (col != 0 && col != costsTable[row].length - 1) {
+					int left = new Color(grayScaledImage.getRGB(col - 1, row)).getRed();
+					int right = new Color(grayScaledImage.getRGB(col + 1, row)).getRed();
+
 					// taking the min cost from adjacent cells and adding the gradient for the current cell
-					c = new Color(gradientImage.getRGB(col, row));
-					costsTable[row][col] = c.getRed() + Math.max(Math.max(costsTable[row - 1][col], costsTable[row - 1][col - 1]), costsTable[row - 1][col + 1]);
+					costL = Math.abs( top - left ) + Math.abs( right - left );
+					costR = Math.abs(top - right) + Math.abs(left - right) ;
+					costV = Math.abs(left - right );
+
+					costsTable[row][col] = gradient + Math.min(Math.min(costsTable[row - 1][col - 1] + costL, costsTable[row - 1][col] + costV),
+							costsTable[row - 1][col + 1] + costR);
+
 				} else {
 					// padding the sides with 0 so it would be too expensive for the seam to pass there
 					if (col == 0) {
-						costsTable[row][col] = 0;
+						costsTable[row][col] = costsTable[row - 1][col] + 255;
 					}
 					if (col == costsTable[row].length - 1) {
-						costsTable[row][col] = 0;
+						costsTable[row][col] = costsTable[row - 1][col] + 255;
 					}
 				}
 			}

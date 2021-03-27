@@ -108,8 +108,6 @@ public class ImageProcessor extends FunctioalForEachLoops {
 		BufferedImage result = newEmptyInputSizedImage();
 		BufferedImage grayScaledImage = this.greyscale();
 
-
-
 		forEach((y, x) -> {
 			Color current, rightColor, bottomColor;
 
@@ -126,7 +124,7 @@ public class ImageProcessor extends FunctioalForEachLoops {
 			int horizontalGradient = (int) Math.pow(rightColor.getRed() - current.getRed(), 2) ;
 			int verticalGradient = (int) Math.pow(bottomColor.getRed() - current.getRed(), 2);
 
-			int gradientValue = 255 - (int) (Math.sqrt(horizontalGradient + verticalGradient) / 360 * 255 ) % 255;
+			int gradientValue = (int) (Math.sqrt(horizontalGradient + verticalGradient) / 360 * 255 ) ;
 			result.setRGB(x, y, new Color(gradientValue, gradientValue, gradientValue).getRGB());
 
 		});
