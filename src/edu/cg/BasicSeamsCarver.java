@@ -103,11 +103,10 @@ public class BasicSeamsCarver extends ImageProcessor {
 		image = removeVerticalSeam(image, path);
 		removeSeamCoordinate(path);
 
-		for(int i =0;i<25;i++){
-			path = getVerticalSeam(image);
-			image = removeVerticalSeam(image, path);
-			removeSeamCoordinate(path);
-		}
+		path = getVerticalSeam(image);
+		image = removeVerticalSeam(image, path);
+		removeSeamCoordinate(path);
+
 
 		return drawSeams();
 //		return image;
@@ -186,7 +185,8 @@ public class BasicSeamsCarver extends ImageProcessor {
 	private ArrayList<Coordinate> getVerticalSeam(BufferedImage image){
 		ArrayList<Coordinate> seamPath = new ArrayList<Coordinate>();
 		int col = getMinAvailableIndex();
-		seamPath.add(new Coordinate(col, gradientImage.getHeight() - 1));
+//		seamPath.add(new Coordinate(col, gradientImage.getHeight() - 1));
+		seamPath.add(originalImageCoordinates[gradientImage.getHeight() - 1][col]);
 
 		for(int row = gradientImage.getHeight() - 1; row > 0 ; row--){
 			int top = new Color(grayScaledImage.getRGB(col, row - 1)).getRed();
@@ -198,14 +198,16 @@ public class BasicSeamsCarver extends ImageProcessor {
 			int gradient = new Color(gradientImage.getRGB(col, row)).getRed();
 
 			if(costsTable[row][col] == gradient + costsTable[row - 1][col - 1] + costL){
-				seamPath.add(new Coordinate(col - 1, row - 1));
+//				seamPath.add(new Coordinate(col - 1, row - 1));
+				seamPath.add(originalImageCoordinates[row - 1][col - 1]);
 				col--;
 			} else if (costsTable[row][col] == gradient + costsTable[row - 1][col + 1] + costR){
-				seamPath.add(new Coordinate(col + 1 , row - 1));
+//				seamPath.add(new Coordinate(col + 1 , row - 1));
+				seamPath.add(originalImageCoordinates[row - 1][col + 1]);
 				col++;
 			}else if (costsTable[row][col] == gradient + costsTable[row - 1][col] + costV){
-				seamPath.add(new Coordinate(col, row - 1));
-
+//				seamPath.add(new Coordinate(col, row - 1));
+				seamPath.add(originalImageCoordinates[row - 1][col]);
 			}
 
 		}
@@ -215,10 +217,14 @@ public class BasicSeamsCarver extends ImageProcessor {
 		return seamPath;
 	}
 
+	private Coordinate getOriginalCoordinates(int x, int y){
+		return originalImageCoordinates[y][x];
+	}
+
 	private int getMinAvailableIndex(){
 		int minIndex = 0;
-		int lastRow = gradientImage.getHeight() - 1;
-		for(int i = 0; i < gradientImage.getWidth(); i++){
+		int lastRow = inHeight - 1
+		for(int i = 0; i < inWidth; i++){
 			if(costsTable[lastRow][i] <= costsTable[lastRow][minIndex] && availableVerticalSeams[i]){
 				minIndex = i;
 			}
