@@ -38,9 +38,8 @@ public class BasicSeamsCarver extends ImageProcessor {
 	// TODO :  Decide on the fields your BasicSeamsCarver should include. Refer to the recitation and homework 
 	// instructions PDF to make an educated decision.
 	BufferedImage grayScaledImage;
-	BufferedImage gradientImage;
 	int[][] costsTable;
-	Boolean[] availableVerticalSeams;
+
 	Coordinate[][] originalImageCoordinates;
 	ArrayList< ArrayList<Coordinate> > seamsToDraw;
 	int currentWidth, currentHeight;
@@ -50,16 +49,13 @@ public class BasicSeamsCarver extends ImageProcessor {
 		super((s) -> logger.log("Seam carving: " + s), workingImage, rgbWeights, outWidth, outHeight);
 		// TODO : Include some additional initialization procedures.
 		this.currentHeight = inHeight;
-		this.currentWidth = inWidth;
+		this.currentWidth = inWidth ;
 
 		grayScaledImage = greyscale();
-		gradientImage = gradientMagnitude();
 		initCoordinatesTable();
-		costsTable = new int[this.inHeight][this.inWidth];
-		availableVerticalSeams = initializeBooleanArray(gradientImage.getWidth());
-		generateCostsTable(costsTable);
-		seamsToDraw = new ArrayList<ArrayList<Coordinate>>();
-//		originalImageCoordinates = initCoordinatesTable();
+
+		generateCostsTable();
+		seamsToDraw = new ArrayList<>();
 
 	}
 
@@ -73,20 +69,16 @@ public class BasicSeamsCarver extends ImageProcessor {
 
 		BufferedImage image = duplicateWorkingImage();
 
-		ArrayList<Coordinate> currentSeam = getVerticalSeam(image);
 
-
-		currentWidth--;
-		// removeSeamFromCoordinatesTable
-		removeSeamFromCostTable(currentSeam);
+		for(int i=0;i<30;i++){
+			ArrayList<Coordinate> currentSeam = getVerticalSeam(image);
+			removeVerticalSeam(currentSeam);
+		}
 
 
 		image = drawSeams(image);
 
-//		image = costTableToImage();
-
 		return image;
-
 	}
 
 
@@ -110,17 +102,32 @@ public class BasicSeamsCarver extends ImageProcessor {
 		return  image;
 	}
 
-	private void removeSeamFromCostTable(ArrayList<Coordinate> currentPath ) {
-		for(Coordinate c : currentPath){
-			for(int col = c.X; col < currentWidth - 1; col++){
-				costsTable[c.Y][col] = costsTable[c.Y][col + 1];
+	private BufferedImage getCurvedImage(){
+		BufferedImage result = newEmptyOutputSizedImage();
+
+		setForEachOutputParameters();
+
+		forEach((y, x) -> {
+			Coordinate currentPixelCoordinate = originalImageCoordinates[y][x];
+			Color currentColor = new Color(workingImage.getRGB(currentPixelCoordinate.X, currentPixelCoordinate.Y));
+			result.setRGB(x, y, currentColor.getRGB() );
+		});
+
+		return result;
+	}
+
+	private void removeVerticalSeam(ArrayList<Coordinate> currentPath){
+		removeSeamFromCoordinatesTable(currentPath);
+		this.currentWidth--;
+		generateCostsTable();
+	}
+
+	private void removeSeamFromCoordinatesTable(ArrayList<Coordinate> currentPath ) {
+		// vertically
+		for( Coordinate c : currentPath ){
+			for(int col = c.X; col < this.currentWidth - 1; col++){
+				originalImageCoordinates[c.Y][col] = originalImageCoordinates[c.Y][col + 1];
 			}
-		}
-
-		// update the costs
-		for(Coordinate c : currentPath){
-			// getGradientForPixel (c.X, c.Y)
-
 		}
 	}
 
@@ -145,14 +152,13 @@ public class BasicSeamsCarver extends ImageProcessor {
 		} else if(y == 0) {
 			cost = pixelEnergy;
 		} else{
-			Coordinate originalTopPixel = originalImageCoordinates[y - 1][x];
 
 			if(x == 0){
-				cost = costsTable[originalTopPixel.Y][originalTopPixel.X] + 255;
+				cost = costsTable[y - 1][x] + 255;
 			}
 
 			if(x == currentWidth - 1){
-				cost = costsTable[originalTopPixel.Y][originalTopPixel.X] + 255;
+				cost = costsTable[y - 1][x] + 255;
 			}
 		}
 
@@ -160,34 +166,7 @@ public class BasicSeamsCarver extends ImageProcessor {
 	}
 
 	private int getCurrentPixelEnergy(int x, int y){
-		/*
-		Color current, rightColor, bottomColor;
-		Coordinate originalPixel = originalImageCoordinates[y][x];
-		Coordinate originalRightPixel = originalImageCoordinates[y][x + 1];
-		Coordinate originalBottomPixel = originalImageCoordinates[y + 1][x];
-		// add function for getting original grayscale values for coordinate
-		// change the function to suit the recitation
-
-		if(originalPixel.X < inWidth - 1 && originalPixel.Y < inHeight - 1){
-			current = new Color(grayScaledImage.getRGB(originalPixel.X , originalPixel.Y));
-			rightColor = new Color(grayScaledImage.getRGB(originalRightPixel.X, originalRightPixel.Y));
-			bottomColor = new Color(grayScaledImage.getRGB(originalBottomPixel.X, originalBottomPixel.Y));
-		}else{
-			current = new Color(grayScaledImage.getRGB(originalPixel.X , originalPixel.Y));
-			rightColor = new Color(grayScaledImage.getRGB(0, originalRightPixel.Y));
-			bottomColor = new Color(grayScaledImage.getRGB(originalBottomPixel.X, 0));
-		}
-
-		int horizontalGradient = (int) Math.pow(rightColor.getRed() - current.getRed(), 2) ;
-		int verticalGradient = (int) Math.pow(bottomColor.getRed() - current.getRed(), 2);
-
-		int gradientValue = (int) (Math.sqrt(horizontalGradient + verticalGradient) / 360 * 255 ) ;
-
-		return gradientValue;
-
-		 */
 		int verticalEvergy ;
-
 
 		if( x < currentWidth - 1 ){
 			verticalEvergy = Math.abs( getOriginalGrayscaleColor(x,y).getRed() - getOriginalGrayscaleColor(x + 1, y).getRed() );
@@ -230,22 +209,11 @@ public class BasicSeamsCarver extends ImageProcessor {
 		forEach((y, x) -> {
 			this.originalImageCoordinates[y][x] = new Coordinate(x,y);
 		});
-
-//		return originalImageCoordinates;
-	}
-
-	private void removeSeamCoordinateTable(List<Coordinate> seamPath){
-		for(Coordinate c : seamPath){
-			for(int col = c.X; col < inWidth - 1; col++){
-				originalImageCoordinates[c.Y][col] = originalImageCoordinates[c.Y][col + 1];
-			}
-
-		}
 	}
 
 	private BufferedImage drawSeams(BufferedImage image){
 
-		for(ArrayList<Coordinate> path : seamsToDraw){
+		for(ArrayList<Coordinate> path : this.seamsToDraw){
 			for(Coordinate c : path){
 				image.setRGB(c.X,c.Y, Color.RED.getRGB());
 			}
@@ -269,7 +237,6 @@ public class BasicSeamsCarver extends ImageProcessor {
 
 		for(int row = 0; row < costsTable.length; row++){
 			for(int col = 1; col < costsTable[row].length - 2; col++){
-//				Color c = new Color(costsTable[row][col] / x, costsTable[row][col] / x, costsTable[row][col] / x);
 				image.setRGB(col, row, costsTable[row][col] / x);
 			}
 		}
@@ -279,12 +246,11 @@ public class BasicSeamsCarver extends ImageProcessor {
 	private ArrayList<Coordinate> getVerticalSeam(BufferedImage image){
 		ArrayList<Coordinate> originalSeam = new ArrayList<Coordinate>();
 		ArrayList<Coordinate> currentSeam = new ArrayList<Coordinate>();
-		int col = getMinAvailableIndex();
-		currentSeam.add(0, new Coordinate(col, gradientImage.getHeight() - 1));
-		originalSeam.add(0,originalImageCoordinates[gradientImage.getHeight() - 1][col]);
+		int col = getMinCostIndex();
+		currentSeam.add(0, new Coordinate(col, this.currentHeight - 1));
+		originalSeam.add(0,originalImageCoordinates[this.currentHeight - 1][col]);
 
 		for(int row = currentHeight - 1; row > 0 ; row--){
-
 
 			int top = getOriginalGrayscaleColor(col, row - 1).getRed();
 			int left = getOriginalGrayscaleColor(col - 1, row).getRed();
@@ -317,70 +283,23 @@ public class BasicSeamsCarver extends ImageProcessor {
 	}
 
 	// update to use current Width
-	private int getMinAvailableIndex(){
+	private int getMinCostIndex(){
 		int minIndex = 0;
 		int lastRow = this.currentHeight - 1;
 		for(int i = 0; i < this.currentWidth; i++){
-			if(costsTable[lastRow][i] <= costsTable[lastRow][minIndex] && availableVerticalSeams[i]){
+			if(costsTable[lastRow][i] <= costsTable[lastRow][minIndex] ){
 				minIndex = i;
 			}
 		}
 
-		availableVerticalSeams[minIndex] = false;
 		return minIndex;
 	}
 
-	private Boolean[]  initializeBooleanArray(int arrayLength){
-		Boolean [] boolArray = new Boolean[arrayLength];
-		for(int i=0;i<arrayLength;i++){
-			boolArray[i] = true;
-		}
+	private void generateCostsTable() {
+		this.costsTable = new int[this.currentHeight][this.currentWidth];
 
-		return boolArray;
-	}
-
-	private void generateCostsTable(int[][] costsTable) {
-	/*	Color c;
-		int costL;
-		int costR;
-		int costV;
-
-
-		for (int i = 0; i < costsTable[0].length; i++) {
-			c = new Color(gradientImage.getRGB(i, 0));
-			costsTable[0][i] = c.getRed();
-		}
-
-		for (int row = 1; row < costsTable.length; row++) {
-			for (int col = 0; col < costsTable[row].length; col++) {
-				int top = new Color(grayScaledImage.getRGB(col, row - 1)).getRed();
-				int gradient = new Color(gradientImage.getRGB(col,row)).getRed();
-
-				if (col != 0 && col != costsTable[row].length - 1) {
-					int left = new Color(grayScaledImage.getRGB(col - 1, row)).getRed();
-					int right = new Color(grayScaledImage.getRGB(col + 1, row)).getRed();
-					// taking the min cost from adjacent cells and adding the gradient for the current cell
-					costL = Math.abs( top - left ) + Math.abs( right - left );
-					costR = Math.abs(top - right) + Math.abs(left - right) ;
-					costV = Math.abs(left - right );
-					costsTable[row][col] = gradient + Math.min(Math.min(costsTable[row - 1][col - 1] + costL, costsTable[row - 1][col] + costV),
-							costsTable[row - 1][col + 1] + costR);
-				} else {
-					// padding the sides with 0 so it would be too expensive for the seam to pass there
-					if (col == 0) {
-						costsTable[row][col] = costsTable[row - 1][col] + 255;
-					}
-					if (col == costsTable[row].length - 1) {
-						costsTable[row][col] = costsTable[row - 1][col] + 255;
-					}
-				}
-			}
-		}
-
- */
-
-		for(int row=0; row < inHeight ; row++){
-			for(int col =0;col< inWidth ;col++){
+		for(int row=0; row < currentHeight ; row++){
+			for(int col =0;col< currentWidth ;col++){
 				costsTable[row][col] = getCostForPixel(col, row);
 			}
 		}
