@@ -43,19 +43,20 @@ public class BasicSeamsCarver extends ImageProcessor {
 	Coordinate[][] originalImageCoordinates;
 	private ArrayList< ArrayList<Coordinate> > seamsToDraw;
 
+
 	int currentWidth, currentHeight;
-	int [] test;
+
 	public BasicSeamsCarver(Logger logger, BufferedImage workingImage,
 							int outWidth, int outHeight, RGBWeights rgbWeights) {
 		super((s) -> logger.log("Seam carving: " + s), workingImage, rgbWeights, outWidth, outHeight);
 		// TODO : Include some additional initialization procedures.
+
 		this.currentHeight = inHeight;
 		this.currentWidth = inWidth ;
-
+		seamsToDraw = new ArrayList<>();
 		grayScaledImage = greyscale();
 		initCoordinatesTable();
 		generateCostsTable();
-		seamsToDraw = new ArrayList<>();
 	}
 
 	public BufferedImage carveImage(CarvingScheme carvingScheme) {
@@ -67,7 +68,6 @@ public class BasicSeamsCarver extends ImageProcessor {
 		// Return the resulting image.
 
 		BufferedImage image = duplicateWorkingImage();
-
 
 		for(int i=0; i < numberOfVerticalSeamsToCarve; i++){
 			ArrayList<Coordinate> currentSeam = getVerticalSeam(image);
@@ -94,8 +94,15 @@ public class BasicSeamsCarver extends ImageProcessor {
 		// from the image.
 		// Then, generate a new image from the input image in which you mark all of the horizontal seams that
 		// were chosen in the Seam Carving process.
-		int num = test.length;
-		BufferedImage image = newEmptyInputSizedImage();
+
+		BufferedImage image = duplicateWorkingImage();
+
+		for(int i=0; i < numberOfVerticalSeamsToCarve; i++){
+			ArrayList<Coordinate> currentSeam = getVerticalSeam(image);
+			removeVerticalSeam(currentSeam);
+		}
+
+		image = duplicateWorkingImage();
 		image = drawSeams(image);
 		return  image;
 	}
@@ -272,7 +279,6 @@ public class BasicSeamsCarver extends ImageProcessor {
 				currentSeam.add(0, new Coordinate(col, row - 1));
 				originalSeam.add(0, originalImageCoordinates[row - 1][col]);
 			}
-
 		}
 
 		seamsToDraw.add(originalSeam);
