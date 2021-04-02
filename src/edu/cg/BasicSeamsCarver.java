@@ -43,7 +43,7 @@ public class BasicSeamsCarver extends ImageProcessor {
 	Coordinate[][] originalImageCoordinates;
 	private ArrayList< ArrayList<Coordinate> > seamsToDraw;
 
-
+	int carvingScheme;
 	int currentWidth, currentHeight;
 
 	public BasicSeamsCarver(Logger logger, BufferedImage workingImage,
@@ -56,7 +56,9 @@ public class BasicSeamsCarver extends ImageProcessor {
 		seamsToDraw = new ArrayList<>();
 		grayScaledImage = greyscale();
 		initCoordinatesTable();
-		generateCostsTable();
+//		generateCostsTableVertically();
+		generateCostsTableHorizontally();
+		carvingScheme = 1;
 	}
 
 	public BufferedImage carveImage(CarvingScheme carvingScheme) {
@@ -67,14 +69,17 @@ public class BasicSeamsCarver extends ImageProcessor {
 		// Note you must consider the 'carvingScheme' parameter in your procedure.
 		// Return the resulting image.
 
-		BufferedImage image = duplicateWorkingImage();
 
-		for(int i=0; i < numberOfVerticalSeamsToCarve; i++){
-			ArrayList<Coordinate> currentSeam = getVerticalSeam(image);
-			removeVerticalSeam(currentSeam);
-		}
+//		BufferedImage image = duplicateWorkingImage();
+//
+//		for(int i=0; i < numberOfVerticalSeamsToCarve; i++){
+//			ArrayList<Coordinate> currentSeam = getVerticalSeam(image);
+//			removeVerticalSeam(currentSeam);
+//		}
+//
+//		image = getCarvedImage();
 
-		image = getCarvedImage();
+		BufferedImage image = costTableToImage();
 
 		return image;
 	}
@@ -124,7 +129,7 @@ public class BasicSeamsCarver extends ImageProcessor {
 	private void removeVerticalSeam(ArrayList<Coordinate> currentPath){
 		removeSeamFromCoordinatesTable(currentPath);
 		this.currentWidth--;
-		generateCostsTable();
+		generateCostsTableVertically();
 	}
 
 	private void removeSeamFromCoordinatesTable(ArrayList<Coordinate> currentPath ) {
@@ -170,16 +175,69 @@ public class BasicSeamsCarver extends ImageProcessor {
 		return cost;
 	}
 
+
+	private int getCostForPixelHorizontally(int x, int y){
+
+		int pixelEnergy = getCurrentPixelEnergy(x, y);
+		int costU, costH, costD;
+		int cost = 0;
+
+		if(y != 0 && y != currentHeight - 1 && x != 0 ){
+
+			int left = getOriginalGrayscaleColor(x - 1, y).getRed();
+			int bottom = getOriginalGrayscaleColor(x , y + 1).getRed();
+			int top = getOriginalGrayscaleColor(x, y - 1).getRed();
+
+			costU = Math.abs( top - left ) + Math.abs( top - bottom );
+			costD = Math.abs(bottom - left) + Math.abs(top - bottom) ;
+			costH = Math.abs(top - bottom);
+
+			cost = pixelEnergy + Math.min(Math.min( costsTable[y - 1][x - 1] + costU, costsTable[y ][x - 1] + costH ), costsTable[y + 1][x - 1] + costD );
+
+		} else if(x == 0) {
+			cost = pixelEnergy;
+		} else{
+
+			if(y == 0){
+				cost = costsTable[y][x - 1] + 255;
+			}
+
+			if(y == currentHeight - 1){
+				cost = costsTable[y][x - 1] + 255;
+			}
+		}
+
+		return cost;
+	}
+
 	private int getCurrentPixelEnergy(int x, int y){
 		int verticalEvergy ;
+		int horizontalEnergy;
 
-		if( x < currentWidth - 1 ){
+		int width, height;
+		if(this.carvingScheme == 0){
+			width = currentWidth;
+			height = currentHeight;
+		}else{
+			width = currentHeight;
+			height = currentWidth;
+		}
+
+		if( x < width - 1 ){
 			verticalEvergy = Math.abs( getOriginalGrayscaleColor(x,y).getRed() - getOriginalGrayscaleColor(x + 1, y).getRed() );
 		} else {
 			verticalEvergy = Math.abs( getOriginalGrayscaleColor(x,y).getRed() - getOriginalGrayscaleColor(x - 1, y).getRed() );
 		}
 
-		return verticalEvergy;
+		if( y < height - 1){
+			horizontalEnergy = Math.abs( getOriginalGrayscaleColor(x,y).getRed() - getOriginalGrayscaleColor(x, y + 1).getRed() );
+		} else {
+			horizontalEnergy = Math.abs( getOriginalGrayscaleColor(x,y).getRed() - getOriginalGrayscaleColor(x, y - 1).getRed() );
+		}
+
+		int pixelEnergy = (int) Math.sqrt( Math.pow(verticalEvergy, 2) + Math.pow(horizontalEnergy, 2));
+
+		return pixelEnergy;
 
 	}
 
@@ -188,22 +246,6 @@ public class BasicSeamsCarver extends ImageProcessor {
 		Color pixelColor = new Color(grayScaledImage.getRGB(originalPixel.X, originalPixel.Y));
 
 		return pixelColor;
-	}
-
-	private BufferedImage removeVerticalSeam(BufferedImage image, List<Coordinate> path){
-		BufferedImage result = newEmptyImage(image.getWidth() - 1, image.getHeight());
-
-		for( Coordinate c : path){
-			for(int col = 0; col < image.getWidth() - 1; col++){
-				if(col < c.X ){
-					result.setRGB(col, c.Y, image.getRGB(col, c.Y));
-				} else {
-					result.setRGB(col , c.Y , image.getRGB(col + 1, c.Y));
-				}
-			}
-
-		}
-		return result;
 	}
 
 	private void initCoordinatesTable(){
@@ -230,7 +272,7 @@ public class BasicSeamsCarver extends ImageProcessor {
 	private BufferedImage costTableToImage(){
 		BufferedImage image = newEmptyInputSizedImage();
 		int maxValue = 0;
-		for(int row = 0; row < costsTable.length; row++){
+		for(int row = 1; row < costsTable.length - 1; row++){
 			for(int col = 1; col < costsTable[row].length - 2; col++){
 				if(costsTable[row][col] >= maxValue){
 					maxValue = costsTable[row][col];
@@ -251,7 +293,7 @@ public class BasicSeamsCarver extends ImageProcessor {
 	private ArrayList<Coordinate> getVerticalSeam(BufferedImage image){
 		ArrayList<Coordinate> originalSeam = new ArrayList<Coordinate>();
 		ArrayList<Coordinate> currentSeam = new ArrayList<Coordinate>();
-		int col = getMinCostIndex();
+		int col = getMinVerticalCostIndex();
 		currentSeam.add(0, new Coordinate(col, this.currentHeight - 1));
 		originalSeam.add(0,originalImageCoordinates[this.currentHeight - 1][col]);
 
@@ -286,8 +328,46 @@ public class BasicSeamsCarver extends ImageProcessor {
 		return currentSeam;
 	}
 
-	// update to use current Width
-	private int getMinCostIndex(){
+/*
+	private ArrayList<Coordinate> getHorizontalSeam(BufferedImage image){
+		ArrayList<Coordinate> originalSeam = new ArrayList<Coordinate>();
+		ArrayList<Coordinate> currentSeam = new ArrayList<Coordinate>();
+		int row = getMinHorizontalCostIndex();
+		currentSeam.add(0, new Coordinate(this.currentWidth - 1, row));
+		originalSeam.add(0,originalImageCoordinates[this.currentWidth - 1][row]);
+
+		for(int col = currentWidth - 1; col > 0 ; col--){
+
+			int top = getOriginalGrayscaleColor(col, row - 1).getRed();
+			int left = getOriginalGrayscaleColor(col - 1, row).getRed();
+			int bottom = getOriginalGrayscaleColor(col , row + 1).getRed();
+
+			int costU = Math.abs( top - left ) + Math.abs( top - bottom );
+			int costR = Math.abs(top - right) + Math.abs(left - right) ;
+			int costV = Math.abs(left - right );
+
+			int pixelEnergy = getCurrentPixelEnergy(col, row);
+
+			if(costsTable[row][col] == pixelEnergy + costsTable[row - 1][col - 1] + costL){
+				currentSeam.add(0, new Coordinate(col - 1, row - 1));
+				originalSeam.add(0, originalImageCoordinates[row - 1][col - 1]);
+				col--;
+			} else if (costsTable[row][col] == pixelEnergy + costsTable[row - 1][col + 1] + costR){
+				currentSeam.add(0, new Coordinate(col + 1 , row - 1));
+				originalSeam.add(0, originalImageCoordinates[row - 1][col + 1]);
+				col++;
+			}else if (costsTable[row][col] == pixelEnergy + costsTable[row - 1][col] + costV){
+				currentSeam.add(0, new Coordinate(col, row - 1));
+				originalSeam.add(0, originalImageCoordinates[row - 1][col]);
+			}
+		}
+
+		seamsToDraw.add(originalSeam);
+
+		return currentSeam;
+	}
+*/
+	private int getMinVerticalCostIndex(){
 		int minIndex = 0;
 		int lastRow = this.currentHeight - 1;
 		for(int i = 0; i < this.currentWidth; i++){
@@ -299,15 +379,42 @@ public class BasicSeamsCarver extends ImageProcessor {
 		return minIndex;
 	}
 
-	private void generateCostsTable() {
+
+	private int getMinHorizontalCostIndex(){
+		int minIndex = 0;
+		int lastCol = this.currentWidth - 1;
+		for(int i = 0; i < this.currentHeight; i++){
+			if(costsTable[i][lastCol] <= costsTable[minIndex][lastCol] ){
+				minIndex = i;
+			}
+		}
+
+		return minIndex;
+	}
+
+
+	private void generateCostsTableVertically() {
 		this.costsTable = new int[this.currentHeight][this.currentWidth];
 
-		for(int row=0; row < currentHeight ; row++){
-			for(int col =0;col< currentWidth ;col++){
-				costsTable[row][col] = getCostForPixel(col, row);
+		for(int y=0; y < currentHeight ; y++){
+			for(int x =0;x< currentWidth ;x++){
+				costsTable[y][x] = getCostForPixel(x, y);
 			}
 		}
 
 	}
+
+
+	private void generateCostsTableHorizontally() {
+		this.costsTable = new int[this.currentHeight][this.currentWidth];
+
+		for(int x=0; x < currentWidth  ; x++){
+			for(int y =0; y< currentHeight  ; y++){
+				costsTable[y][x] = getCostForPixelHorizontally(x , y);
+			}
+		}
+
+	}
+
 
 }
